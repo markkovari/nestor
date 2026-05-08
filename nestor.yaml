@@ -1,0 +1,14 @@
+database:
+  url: "ws://localhost:8000"
+  ns: "nestor"
+  db: "nestor"
+  user: "root"
+  password: "root"
+
+llm:
+  provider: "mock" # options: gemini, openai, mock
+  model: "gemini-1.5-pro"
+
+adapters:
+  github:
+    repos: ["markkovari/nestor"]

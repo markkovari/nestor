@@ -54,16 +54,21 @@ func (g *GitHubIssueProvider) FetchTasks(ctx context.Context) ([]core.Task, erro
 				if issue.IsPullRequest() {
 					continue
 				}
+				prURLs, _ := g.fetchLinkedPRs(ctx, owner, repo, issue.GetNumber())
+				metadata := map[string]string{
+					"repo": repoPath,
+					"url":  issue.GetHTMLURL(),
+				}
+				if len(prURLs) > 0 {
+					metadata["linked_prs"] = strings.Join(prURLs, ",")
+				}
 				allTasks = append(allTasks, core.Task{
 					ID:          fmt.Sprintf("%s#%d", repo, issue.GetNumber()),
 					Title:       issue.GetTitle(),
 					Description: issue.GetBody(),
 					Status:      issue.GetState(),
 					Provider:    "github",
-					Metadata: map[string]string{
-						"repo": repoPath,
-						"url":  issue.GetHTMLURL(),
-					},
+					Metadata:    metadata,
 				})
 			}
 
@@ -75,6 +80,24 @@ func (g *GitHubIssueProvider) FetchTasks(ctx context.Context) ([]core.Task, erro
 	}
 
 	return allTasks, nil
+}
+
+func (g *GitHubIssueProvider) fetchLinkedPRs(ctx context.Context, owner, repo string, issueNumber int) ([]string, error) {
+	opts := &github.ListOptions{PerPage: 25}
+	events, _, err := g.client.Issues.ListIssueTimeline(ctx, owner, repo, issueNumber, opts)
+	if err != nil {
+		return nil, nil
+	}
+	var prURLs []string
+	for _, event := range events {
+		if event.GetEvent() == "cross-referenced" {
+			src := event.Source
+			if src != nil && src.Issue != nil && src.Issue.IsPullRequest() {
+				prURLs = append(prURLs, src.Issue.GetHTMLURL())
+			}
+		}
+	}
+	return prURLs, nil
 }
 
 func (g *GitHubIssueProvider) UpdateTask(ctx context.Context, taskID string, description string) error {

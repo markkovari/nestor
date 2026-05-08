@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,12 +12,14 @@ import (
 )
 
 type Engine struct {
-	TaskProviders []TaskProvider
-	LLM           LLMProvider
-	DB            DataStore
-	CacheTTL      int  // in minutes
-	FetchOnly     bool // bypass cache if true
-	ADRDir        string
+	TaskProviders   []TaskProvider
+	SourceProviders []SourceProvider
+	LLM             LLMProvider
+	DB              DataStore
+	CacheTTL        int  // in minutes
+	FetchOnly       bool // bypass cache if true
+	ADRDir          string
+	seenHashes      map[string]bool
 }
 
 func isNil(i any) bool {
@@ -33,7 +36,18 @@ func NewEngine(database DataStore, llm LLMProvider, tasks ...TaskProvider) *Engi
 		TaskProviders: tasks,
 		LLM:           llm,
 		ADRDir:        "docs/adrs",
+		seenHashes:    make(map[string]bool),
 	}
+}
+
+func (e *Engine) WithSourceProviders(providers ...SourceProvider) *Engine {
+	e.SourceProviders = providers
+	return e
+}
+
+func conflictHash(taskID, adrRef, reason string) string {
+	h := sha256.Sum256([]byte(taskID + "|" + adrRef + "|" + reason))
+	return fmt.Sprintf("%x", h)[:16]
 }
 
 // obsoleteADRStatuses are ADR status values that mean the rule is no longer active.
@@ -130,10 +144,39 @@ func (e *Engine) fetchAllTasks(ctx context.Context) ([]Task, map[string]TaskProv
 	return allTasks, providerMap, nil
 }
 
+func (e *Engine) fetchAndSaveCodeComponents(ctx context.Context, allTasks []Task) error {
+	for _, sp := range e.SourceProviders {
+		components, err := sp.FetchMetadata(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to fetch source metadata: %w", err)
+		}
+		for _, component := range components {
+			if err := e.DB.SaveCodeComponent(ctx, component); err != nil {
+				return fmt.Errorf("failed to save code component %s: %w", component.Name, err)
+			}
+			for _, t := range allTasks {
+				if repo, ok := t.Metadata["repo"]; ok && repo == component.Path {
+					if err := e.DB.CreateModification(ctx, t.ID, component.Name); err != nil {
+						// Non-fatal: log but continue
+						fmt.Printf("Warning: failed to create modification edge for task %s -> component %s: %v\n", t.ID, component.Name, err)
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
 func (e *Engine) RunAnalysis(ctx context.Context) error {
 	allTasks, _, err := e.fetchAllTasks(ctx)
 	if err != nil {
 		return err
+	}
+
+	if e.DB != nil && !isNil(e.DB) && len(e.SourceProviders) > 0 {
+		if err := e.fetchAndSaveCodeComponents(ctx, allTasks); err != nil {
+			return err
+		}
 	}
 
 	fmt.Printf("Analyzing total of %d tasks...\n", len(allTasks))
@@ -157,26 +200,60 @@ func (e *Engine) RunAnalysis(ctx context.Context) error {
 	if len(adrs) == 0 {
 		adrs = []string{"no ADRs configured"}
 	}
-	conflictReport, err := e.LLM.AnalyzeConflict(ctx, allTasks, adrs)
+	report, err := e.LLM.AnalyzeConflictStructured(ctx, allTasks, adrs)
 	if err != nil {
 		return fmt.Errorf("failed to analyze conflicts: %w", err)
 	}
-	fmt.Printf("Conflict Analysis: %s\n", conflictReport)
+
+	var newFindings []ConflictFinding
+	for _, f := range report.Findings {
+		h := conflictHash(f.TaskID, f.ADRRef, f.Reason)
+		seen := e.seenHashes[h]
+		if !seen && e.DB != nil && !isNil(e.DB) {
+			dbSeen, _ := e.DB.HasConflictHash(ctx, h)
+			seen = dbSeen
+		}
+		if !seen {
+			newFindings = append(newFindings, f)
+			e.seenHashes[h] = true
+			if e.DB != nil && !isNil(e.DB) {
+				e.DB.SaveConflictHash(ctx, h)
+				e.DB.SaveConflictFinding(ctx, f)
+			}
+		}
+	}
+	report.Findings = newFindings
+	if len(newFindings) == 0 {
+		fmt.Println("No new conflicts since last run.")
+		return nil
+	}
+
+	fmt.Printf("Conflict Analysis: %s\n", report.Summary)
+	for _, f := range report.Findings {
+		fmt.Printf("  [%s] %s — %s: %q → %s\n", f.Severity, f.TaskID, f.ADRRef, f.Clause, f.Reason)
+	}
 
 	return nil
 }
 
 // AnalysisResult holds the structured output of RunAnalysisResult.
 type AnalysisResult struct {
-	TaskCount      int                 `json:"task_count"`
-	Dependencies   map[string][]string `json:"dependencies"`
-	ConflictReport string              `json:"conflict_report"`
+	TaskCount        int                 `json:"task_count"`
+	Dependencies     map[string][]string `json:"dependencies"`
+	ConflictReport   string              `json:"conflict_report"`
+	ConflictFindings []ConflictFinding   `json:"conflict_findings"`
 }
 
 func (e *Engine) RunAnalysisResult(ctx context.Context) (*AnalysisResult, error) {
 	allTasks, _, err := e.fetchAllTasks(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	if e.DB != nil && !isNil(e.DB) && len(e.SourceProviders) > 0 {
+		if err := e.fetchAndSaveCodeComponents(ctx, allTasks); err != nil {
+			return nil, err
+		}
 	}
 
 	dag, err := e.LLM.GenerateDAG(ctx, allTasks)
@@ -196,16 +273,47 @@ func (e *Engine) RunAnalysisResult(ctx context.Context) (*AnalysisResult, error)
 	if len(adrs) == 0 {
 		adrs = []string{"no ADRs configured"}
 	}
-	conflictReport, err := e.LLM.AnalyzeConflict(ctx, allTasks, adrs)
+	report, err := e.LLM.AnalyzeConflictStructured(ctx, allTasks, adrs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to analyze conflicts: %w", err)
 	}
 
+	var newFindings []ConflictFinding
+	for _, f := range report.Findings {
+		h := conflictHash(f.TaskID, f.ADRRef, f.Reason)
+		seen := e.seenHashes[h]
+		if !seen && e.DB != nil && !isNil(e.DB) {
+			dbSeen, _ := e.DB.HasConflictHash(ctx, h)
+			seen = dbSeen
+		}
+		if !seen {
+			newFindings = append(newFindings, f)
+			e.seenHashes[h] = true
+			if e.DB != nil && !isNil(e.DB) {
+				e.DB.SaveConflictHash(ctx, h)
+				e.DB.SaveConflictFinding(ctx, f)
+			}
+		}
+	}
+	report.Findings = newFindings
+
 	return &AnalysisResult{
-		TaskCount:      len(allTasks),
-		Dependencies:   dag,
-		ConflictReport: conflictReport,
+		TaskCount:        len(allTasks),
+		Dependencies:     dag,
+		ConflictReport:   report.Summary + formatFindings(report.Findings),
+		ConflictFindings: report.Findings,
 	}, nil
+}
+
+func formatFindings(findings []ConflictFinding) string {
+	if len(findings) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	for _, f := range findings {
+		fmt.Fprintf(&sb, "\n[%s] %s violates %s: %q — %s", f.Severity, f.TaskID, f.ADRRef, f.Clause, f.Reason)
+	}
+	return sb.String()
 }
 
 func (e *Engine) PushUpdates(ctx context.Context, confirm func(Task, string) bool) error {
@@ -218,10 +326,11 @@ func (e *Engine) PushUpdates(ctx context.Context, confirm func(Task, string) boo
 	if len(adrs) == 0 {
 		adrs = []string{"no ADRs configured"}
 	}
-	conflictReport, err := e.LLM.AnalyzeConflict(ctx, allTasks, adrs)
+	pushReport, err := e.LLM.AnalyzeConflictStructured(ctx, allTasks, adrs)
 	if err != nil {
 		return fmt.Errorf("failed to analyze conflicts: %w", err)
 	}
+	conflictReport := pushReport.Summary + formatFindings(pushReport.Findings)
 
 	for _, t := range allTasks {
 		suggestion, err := e.LLM.SuggestTaskUpdate(ctx, t, conflictReport)

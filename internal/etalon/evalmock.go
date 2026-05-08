@@ -48,6 +48,26 @@ func (e *EvalMockLLM) AnalyzeConflict(_ context.Context, tasks []core.Task, _ []
 	return sb.String(), nil
 }
 
+func (e *EvalMockLLM) AnalyzeConflictStructured(ctx context.Context, tasks []core.Task, adrs []string) (*core.ConflictReport, error) {
+	var findings []core.ConflictFinding
+	for _, t := range e.Manifest.Tasks {
+		if t.ExpectConflicts {
+			findings = append(findings, core.ConflictFinding{
+				TaskID:    t.ID,
+				TaskTitle: t.Title,
+				ADRRef:    "ADR-etalon",
+				Clause:    t.ExpectConflictReason,
+				Reason:    t.ExpectConflictReason,
+				Severity:  "medium",
+			})
+		}
+	}
+	return &core.ConflictReport{
+		Summary:  fmt.Sprintf("%d conflict(s) found", len(findings)),
+		Findings: findings,
+	}, nil
+}
+
 func (e *EvalMockLLM) SuggestTaskUpdate(_ context.Context, t core.Task, conflicts string) (string, error) {
 	return fmt.Sprintf("%s\n\nNestor Analysis: %s", t.Description, conflicts), nil
 }

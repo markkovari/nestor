@@ -69,7 +69,7 @@ func runEval(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to load config for live mode: %w", err)
 		}
-		baseLLM, err = llm.NewGeminiProvider(ctx, cfg.LLM.APIKey, cfg.LLM.Model)
+		baseLLM, err = llm.NewProvider(ctx, cfg.LLM.Provider, cfg.LLM.APIKey, cfg.LLM.Model, cfg.LLM.BaseURL)
 		if err != nil {
 			return fmt.Errorf("failed to init LLM: %w", err)
 		}

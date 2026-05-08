@@ -42,6 +42,13 @@ func (v *variantLLM) AnalyzeConflict(ctx context.Context, tasks []core.Task, adr
 	return v.inner.AnalyzeConflict(ctx, tasks, adrs)
 }
 
+func (v *variantLLM) AnalyzeConflictStructured(ctx context.Context, tasks []core.Task, adrs []string) (*core.ConflictReport, error) {
+	if v.variant.ConflictPrefix != "" {
+		adrs = append([]string{v.variant.ConflictPrefix}, adrs...)
+	}
+	return v.inner.AnalyzeConflictStructured(ctx, tasks, adrs)
+}
+
 func (v *variantLLM) SuggestTaskUpdate(ctx context.Context, t core.Task, conflicts string) (string, error) {
 	return v.inner.SuggestTaskUpdate(ctx, t, conflicts)
 }

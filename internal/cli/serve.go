@@ -2,17 +2,22 @@ package cli
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/markkovari/nestor/internal/config"
 	"github.com/spf13/cobra"
 )
 
 var servePort int
+var webhookSecret string
 
 var serveCmd = &cobra.Command{
 	Use:   "serve",
@@ -22,6 +27,7 @@ var serveCmd = &cobra.Command{
 
 func init() {
 	serveCmd.Flags().IntVarP(&servePort, "port", "p", 8080, "port to listen on")
+	serveCmd.Flags().StringVar(&webhookSecret, "webhook-secret", "", "GitHub webhook secret for signature verification")
 	rootCmd.AddCommand(serveCmd)
 }
 
@@ -62,9 +68,14 @@ func runServe(cmd *cobra.Command, args []string) error {
 	mux.HandleFunc("POST /webhook/github", func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "webhook read error: %v\n", err)
-		} else {
-			fmt.Fprintf(os.Stdout, "webhook payload: %s\n", body)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		sig := r.Header.Get("X-Hub-Signature-256")
+		if !verifyGitHubSignature(webhookSecret, body, sig) {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "invalid signature"})
+			return
 		}
 		go func() {
 			bgCtx := context.Background()
@@ -80,4 +91,17 @@ func runServe(cmd *cobra.Command, args []string) error {
 	addr := fmt.Sprintf(":%d", servePort)
 	fmt.Printf("Nestor server listening on %s\n", addr)
 	return http.ListenAndServe(addr, mux)
+}
+
+func verifyGitHubSignature(secret string, body []byte, sigHeader string) bool {
+	if secret == "" {
+		return true
+	}
+	if !strings.HasPrefix(sigHeader, "sha256=") {
+		return false
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(body)
+	expected := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+	return hmac.Equal([]byte(expected), []byte(sigHeader))
 }

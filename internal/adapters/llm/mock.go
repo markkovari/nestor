@@ -16,6 +16,25 @@ func (m *MockLLM) AnalyzeConflict(ctx context.Context, tasks []core.Task, adrs [
 	return fmt.Sprintf("MOCK ANALYSIS: Task %s might conflict with Task %s regarding ADRs: %v", tasks[0].ID, tasks[1].ID, adrs), nil
 }
 
+func (m *MockLLM) AnalyzeConflictStructured(ctx context.Context, tasks []core.Task, adrs []string) (*core.ConflictReport, error) {
+	if len(tasks) < 2 {
+		return &core.ConflictReport{Summary: "No violations found.", Findings: []core.ConflictFinding{}}, nil
+	}
+	return &core.ConflictReport{
+		Summary: fmt.Sprintf("Mock: %s may conflict with %s", tasks[0].ID, tasks[1].ID),
+		Findings: []core.ConflictFinding{
+			{
+				TaskID:    tasks[0].ID,
+				TaskTitle: tasks[0].Title,
+				ADRRef:    "ADR-001",
+				Clause:    "mock clause",
+				Reason:    "mock reason",
+				Severity:  "low",
+			},
+		},
+	}, nil
+}
+
 func (m *MockLLM) GenerateDAG(ctx context.Context, tasks []core.Task) (map[string][]string, error) {
 	dag := make(map[string][]string)
 	for i, task := range tasks {

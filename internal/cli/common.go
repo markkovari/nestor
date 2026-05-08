@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/markkovari/nestor/internal/adapters/llm"
+	"github.com/markkovari/nestor/internal/adapters/source"
 	"github.com/markkovari/nestor/internal/adapters/task"
 	"github.com/markkovari/nestor/internal/config"
 	"github.com/markkovari/nestor/internal/core"
@@ -24,13 +25,13 @@ func initializeEngine(ctx context.Context, cfg *config.Config) (*core.Engine, *d
 
 	var llmProvider core.LLMProvider
 	switch cfg.LLM.Provider {
-	case "gemini":
-		llmProvider, err = llm.NewGeminiProvider(ctx, cfg.LLM.APIKey, cfg.LLM.Model)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to init gemini: %w", err)
-		}
-	default:
+	case "mock", "":
 		llmProvider = &llm.MockLLM{}
+	default:
+		llmProvider, err = llm.NewProvider(ctx, cfg.LLM.Provider, cfg.LLM.APIKey, cfg.LLM.Model, cfg.LLM.BaseURL)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to init llm provider %q: %w", cfg.LLM.Provider, err)
+		}
 	}
 
 	var taskProviders []core.TaskProvider
@@ -53,6 +54,11 @@ func initializeEngine(ctx context.Context, cfg *config.Config) (*core.Engine, *d
 	engine.CacheTTL = cfg.CacheTTL
 	if engine.CacheTTL == 0 {
 		engine.CacheTTL = 60
+	}
+
+	if cfg.Adapters.GitHub.Token != "" {
+		sourceProvider := source.NewGitHubProvider(ctx, cfg.Adapters.GitHub.Token, cfg.Adapters.GitHub.Repos)
+		engine.WithSourceProviders(sourceProvider)
 	}
 
 	return engine, database, nil

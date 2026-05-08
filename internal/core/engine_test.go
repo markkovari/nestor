@@ -31,6 +31,14 @@ func (m *mockLLM) GenerateDAG(_ context.Context, tasks []Task) (map[string][]str
 	return dag, nil
 }
 
+func (m *mockLLM) AnalyzeConflictStructured(_ context.Context, tasks []Task, adrs []string) (*ConflictReport, error) {
+	summary, err := m.AnalyzeConflict(context.Background(), tasks, adrs)
+	if err != nil {
+		return nil, err
+	}
+	return &ConflictReport{Summary: summary}, nil
+}
+
 func (m *mockLLM) SuggestTaskUpdate(_ context.Context, t Task, conflicts string) (string, error) {
 	return fmt.Sprintf("%s\n\nNestor Analysis: %s", t.Description, conflicts), nil
 }

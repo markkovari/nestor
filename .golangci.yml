@@ -1,0 +1,31 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - unconvert
+    - unparam
+    - bodyclose
+    - copyloopvar
+    - errorlint
+    - gocritic
+
+linters-settings:
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - performance
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-rules:
+    - path: "_test\\.go"
+      linters:
+        - unparam
+        - errcheck

@@ -46,11 +46,12 @@ func ScoreConflicts(manifest *Manifest, conflictReport string) ConflictScore {
 
 	for _, t := range manifest.Tasks {
 		mentioned := taskMentioned(lower, t)
-		if t.ExpectConflicts && mentioned {
+		switch {
+		case t.ExpectConflicts && mentioned:
 			tp++
-		} else if !t.ExpectConflicts && mentioned {
+		case !t.ExpectConflicts && mentioned:
 			fp++
-		} else if t.ExpectConflicts && !mentioned {
+		case t.ExpectConflicts && !mentioned:
 			fn++
 		}
 	}

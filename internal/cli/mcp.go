@@ -171,7 +171,7 @@ func runMCP(cmd *cobra.Command, args []string) error {
 			resp.Error = &mcpError{Code: -32601, Message: fmt.Sprintf("method not found: %s", req.Method)}
 		}
 
-		encoder.Encode(resp)
+		_ = encoder.Encode(resp)
 	}
 
 	return scanner.Err()

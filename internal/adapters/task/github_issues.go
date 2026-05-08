@@ -54,7 +54,7 @@ func (g *GitHubIssueProvider) FetchTasks(ctx context.Context) ([]core.Task, erro
 				if issue.IsPullRequest() {
 					continue
 				}
-				prURLs, _ := g.fetchLinkedPRs(ctx, owner, repo, issue.GetNumber())
+				prURLs := g.fetchLinkedPRs(ctx, owner, repo, issue.GetNumber())
 				metadata := map[string]string{
 					"repo": repoPath,
 					"url":  issue.GetHTMLURL(),
@@ -82,11 +82,11 @@ func (g *GitHubIssueProvider) FetchTasks(ctx context.Context) ([]core.Task, erro
 	return allTasks, nil
 }
 
-func (g *GitHubIssueProvider) fetchLinkedPRs(ctx context.Context, owner, repo string, issueNumber int) ([]string, error) {
+func (g *GitHubIssueProvider) fetchLinkedPRs(ctx context.Context, owner, repo string, issueNumber int) []string {
 	opts := &github.ListOptions{PerPage: 25}
 	events, _, err := g.client.Issues.ListIssueTimeline(ctx, owner, repo, issueNumber, opts)
 	if err != nil {
-		return nil, nil
+		return nil
 	}
 	var prURLs []string
 	for _, event := range events {
@@ -97,7 +97,7 @@ func (g *GitHubIssueProvider) fetchLinkedPRs(ctx context.Context, owner, repo st
 			}
 		}
 	}
-	return prURLs, nil
+	return prURLs
 }
 
 func (g *GitHubIssueProvider) UpdateTask(ctx context.Context, taskID string, description string) error {

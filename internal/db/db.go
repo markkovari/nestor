@@ -41,13 +41,13 @@ func NewDatabase(ctx context.Context, cfg config.DatabaseConfig) (*Database, err
 
 func (d *Database) Close(ctx context.Context) {
 	if d.Conn != nil {
-		d.Conn.Close(ctx)
+		_ = d.Conn.Close(ctx)
 	}
 }
 
 // SaveTask upserts a task into the database
 func (d *Database) SaveTask(ctx context.Context, t core.Task) error {
-	data := map[string]interface{}{
+	data := map[string]any{
 		"title":       t.Title,
 		"description": t.Description,
 		"status":      t.Status,
@@ -69,7 +69,7 @@ func (d *Database) SaveTask(ctx context.Context, t core.Task) error {
 // FetchTasksByProvider retrieves all tasks for a specific provider
 func (d *Database) FetchTasksByProvider(ctx context.Context, provider string) ([]core.Task, error) {
 	q := "SELECT * FROM task WHERE provider = $provider"
-	vars := map[string]interface{}{
+	vars := map[string]any{
 		"provider": provider,
 	}
 
@@ -87,7 +87,7 @@ func (d *Database) FetchTasksByProvider(ctx context.Context, provider string) ([
 
 // SaveCodeComponent upserts a code component into the database
 func (d *Database) SaveCodeComponent(ctx context.Context, c core.CodeComponent) error {
-	data := map[string]interface{}{
+	data := map[string]any{
 		"path":        c.Path,
 		"name":        c.Name,
 		"description": c.Description,
@@ -125,7 +125,7 @@ func (d *Database) CreateModification(ctx context.Context, taskID, componentID s
 
 // SaveConflictHash records a conflict hash to prevent duplicate reporting.
 func (d *Database) SaveConflictHash(ctx context.Context, hash string) error {
-	data := map[string]interface{}{
+	data := map[string]any{
 		"hash":       hash,
 		"created_at": time.Now().Format(time.RFC3339),
 	}
@@ -135,9 +135,9 @@ func (d *Database) SaveConflictHash(ctx context.Context, hash string) error {
 
 // HasConflictHash returns true if the hash was previously saved.
 func (d *Database) HasConflictHash(ctx context.Context, hash string) (bool, error) {
-	res, err := surrealdb.Query[[]map[string]interface{}](ctx, d.Conn,
+	res, err := surrealdb.Query[[]map[string]any](ctx, d.Conn,
 		"SELECT hash FROM conflict_hash WHERE hash = $hash LIMIT 1",
-		map[string]interface{}{"hash": hash})
+		map[string]any{"hash": hash})
 	if err != nil {
 		return false, err
 	}
@@ -154,7 +154,7 @@ func sha256sum(s string) [32]byte {
 
 // SaveConflictFinding upserts a ConflictFinding record, keyed by a hash of task_id+adr_ref.
 func (d *Database) SaveConflictFinding(ctx context.Context, f core.ConflictFinding) error {
-	data := map[string]interface{}{
+	data := map[string]any{
 		"task_id":    f.TaskID,
 		"task_title": f.TaskTitle,
 		"adr_ref":    f.ADRRef,
@@ -184,7 +184,7 @@ func (d *Database) FetchConflictFindings(ctx context.Context) ([]core.ConflictFi
 func (d *Database) FetchConflictFindingsByTask(ctx context.Context, taskID string) ([]core.ConflictFinding, error) {
 	res, err := surrealdb.Query[[]core.ConflictFinding](ctx, d.Conn,
 		"SELECT * FROM conflict_finding WHERE task_id = $task_id",
-		map[string]interface{}{"task_id": taskID})
+		map[string]any{"task_id": taskID})
 	if err != nil {
 		return nil, err
 	}

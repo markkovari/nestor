@@ -33,7 +33,7 @@ var pushCmd = &cobra.Command{
 			fmt.Print("Do you want to push this update to the provider? (y/N): ")
 			
 			var response string
-			fmt.Scanln(&response)
+			_, _ = fmt.Scanln(&response)
 			return strings.ToLower(response) == "y"
 		}
 

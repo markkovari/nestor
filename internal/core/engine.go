@@ -135,7 +135,7 @@ func (e *Engine) fetchAllTasks(ctx context.Context) ([]Task, map[string]TaskProv
 			}
 			if e.DB != nil && !isNil(e.DB) {
 				for _, t := range providerTasks {
-					e.DB.SaveTask(ctx, t)
+					_ = e.DB.SaveTask(ctx, t)
 				}
 			}
 		}
@@ -191,7 +191,7 @@ func (e *Engine) RunAnalysis(ctx context.Context) error {
 		fmt.Printf("  %s depends on %v\n", taskID, blockers)
 		if e.DB != nil && !isNil(e.DB) {
 			for _, blocker := range blockers {
-				e.DB.CreateDependency(ctx, blocker, taskID)
+				_ = e.DB.CreateDependency(ctx, blocker, taskID)
 			}
 		}
 	}
@@ -217,8 +217,8 @@ func (e *Engine) RunAnalysis(ctx context.Context) error {
 			newFindings = append(newFindings, f)
 			e.seenHashes[h] = true
 			if e.DB != nil && !isNil(e.DB) {
-				e.DB.SaveConflictHash(ctx, h)
-				e.DB.SaveConflictFinding(ctx, f)
+				_ = e.DB.SaveConflictHash(ctx, h)
+				_ = e.DB.SaveConflictFinding(ctx, f)
 			}
 		}
 	}
@@ -264,7 +264,7 @@ func (e *Engine) RunAnalysisResult(ctx context.Context) (*AnalysisResult, error)
 	if e.DB != nil && !isNil(e.DB) {
 		for taskID, blockers := range dag {
 			for _, blocker := range blockers {
-				e.DB.CreateDependency(ctx, blocker, taskID)
+				_ = e.DB.CreateDependency(ctx, blocker, taskID)
 			}
 		}
 	}
@@ -290,8 +290,8 @@ func (e *Engine) RunAnalysisResult(ctx context.Context) (*AnalysisResult, error)
 			newFindings = append(newFindings, f)
 			e.seenHashes[h] = true
 			if e.DB != nil && !isNil(e.DB) {
-				e.DB.SaveConflictHash(ctx, h)
-				e.DB.SaveConflictFinding(ctx, f)
+				_ = e.DB.SaveConflictHash(ctx, h)
+				_ = e.DB.SaveConflictFinding(ctx, f)
 			}
 		}
 	}

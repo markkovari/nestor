@@ -66,7 +66,7 @@ func (l *LinearProvider) FetchTasks(ctx context.Context) ([]core.Task, error) {
 		if err != nil {
 			return nil, err
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		var linResp linearResponse
 		if err := json.NewDecoder(resp.Body).Decode(&linResp); err != nil {
@@ -117,7 +117,7 @@ func (l *LinearProvider) UpdateTask(ctx context.Context, taskID string, descript
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("linear api returned status %d", resp.StatusCode)

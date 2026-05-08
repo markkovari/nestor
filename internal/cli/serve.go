@@ -51,18 +51,18 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "version": "0.1.0"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "version": "0.1.0"})
 	})
 
 	mux.HandleFunc("POST /analyze", func(w http.ResponseWriter, r *http.Request) {
 		if err := engine.RunAnalysis(r.Context()); err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 
 	mux.HandleFunc("POST /webhook/github", func(w http.ResponseWriter, r *http.Request) {
@@ -74,7 +74,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		sig := r.Header.Get("X-Hub-Signature-256")
 		if !verifyGitHubSignature(webhookSecret, body, sig) {
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"error": "invalid signature"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid signature"})
 			return
 		}
 		go func() {
@@ -85,7 +85,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		}()
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(map[string]string{"status": "accepted"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "accepted"})
 	})
 
 	addr := fmt.Sprintf(":%d", servePort)

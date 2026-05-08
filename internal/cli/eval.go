@@ -182,7 +182,7 @@ func appendHistory(path string, results []etalon.EvalResult) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	enc := json.NewEncoder(f)
 	for _, r := range results {
 		if err := enc.Encode(r); err != nil {

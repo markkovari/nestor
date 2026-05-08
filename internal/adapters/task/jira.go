@@ -96,7 +96,7 @@ func (j *JiraProvider) FetchTasks(ctx context.Context) ([]core.Task, error) {
 		if err != nil {
 			return nil, err
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("jira api returned status %d", resp.StatusCode)
@@ -162,7 +162,7 @@ func (j *JiraProvider) UpdateTask(ctx context.Context, taskID string, descriptio
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNoContent {
 		return fmt.Errorf("jira update returned status %d", resp.StatusCode)

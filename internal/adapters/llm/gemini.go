@@ -79,6 +79,21 @@ func (g *GeminiProvider) GenerateDAG(ctx context.Context, tasks []core.Task) (ma
 	return dag, nil
 }
 
+func (g *GeminiProvider) SuggestTaskUpdate(ctx context.Context, task core.Task, conflicts string) (string, error) {
+	var sb strings.Builder
+	sb.WriteString("Based on the following architectural conflict report, suggest an updated description for this task that includes a 'Nestor Analysis' section explaining the risks and dependencies.\n\n")
+	sb.WriteString(fmt.Sprintf("Conflict Report:\n%s\n\n", conflicts))
+	sb.WriteString(fmt.Sprintf("Current Task: %s\nDescription: %s\n\n", task.Title, task.Description))
+	sb.WriteString("Return ONLY the new full description text.")
+
+	resp, err := g.model.GenerateContent(ctx, genai.Text(sb.String()))
+	if err != nil {
+		return "", err
+	}
+
+	return formatResponse(resp), nil
+}
+
 func formatResponse(resp *genai.GenerateContentResponse) string {
 	var parts []string
 	for _, cand := range resp.Candidates {

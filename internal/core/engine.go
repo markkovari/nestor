@@ -31,32 +31,29 @@ func NewEngine(database DataStore, llm LLMProvider, tasks ...TaskProvider) *Engi
 	}
 }
 
-func (e *Engine) RunAnalysis(ctx context.Context) error {
+func (e *Engine) fetchAllTasks(ctx context.Context) ([]Task, map[string]TaskProvider, error) {
 	allTasks := []Task{}
+	providerMap := make(map[string]TaskProvider)
 
 	for _, p := range e.TaskProviders {
+		providerMap[p.Name()] = p
 		var providerTasks []Task
 		useCache := false
 
-		// Try cache first if not explicitly bypassing
 		if !e.FetchOnly && e.DB != nil && !isNil(e.DB) {
 			cached, err := e.DB.FetchTasksByProvider(ctx, p.Name())
 			if err == nil && len(cached) > 0 {
-				// Check TTL
 				latest := cached[0].CachedAt
 				for _, t := range cached {
 					if t.CachedAt > latest {
 						latest = t.CachedAt
 					}
 				}
-
 				cachedTime, parseErr := time.Parse(time.RFC3339, latest)
-				if parseErr == nil {
-					if time.Since(cachedTime) < time.Duration(e.CacheTTL)*time.Minute {
-						fmt.Printf("Using cached tasks for provider: %s\n", p.Name())
-						providerTasks = cached
-						useCache = true
-					}
+				if parseErr == nil && time.Since(cachedTime) < time.Duration(e.CacheTTL)*time.Minute {
+					fmt.Printf("Using cached tasks for provider: %s\n", p.Name())
+					providerTasks = cached
+					useCache = true
 				}
 			}
 		}
@@ -66,25 +63,27 @@ func (e *Engine) RunAnalysis(ctx context.Context) error {
 			var err error
 			providerTasks, err = p.FetchTasks(ctx)
 			if err != nil {
-				return fmt.Errorf("failed to fetch tasks from provider %s: %w", p.Name(), err)
+				return nil, nil, fmt.Errorf("failed to fetch tasks from %s: %w", p.Name(), err)
 			}
-
-			// Update cache
 			if e.DB != nil && !isNil(e.DB) {
 				for _, t := range providerTasks {
-					if err := e.DB.SaveTask(ctx, t); err != nil {
-						fmt.Printf("Warning: failed to persist task %s: %v\n", t.ID, err)
-					}
+					e.DB.SaveTask(ctx, t)
 				}
 			}
 		}
-
 		allTasks = append(allTasks, providerTasks...)
+	}
+	return allTasks, providerMap, nil
+}
+
+func (e *Engine) RunAnalysis(ctx context.Context) error {
+	allTasks, _, err := e.fetchAllTasks(ctx)
+	if err != nil {
+		return err
 	}
 
 	fmt.Printf("Analyzing total of %d tasks...\n", len(allTasks))
 
-	// 1. Generate DAG
 	dag, err := e.LLM.GenerateDAG(ctx, allTasks)
 	if err != nil {
 		return fmt.Errorf("failed to generate DAG: %w", err)
@@ -93,22 +92,49 @@ func (e *Engine) RunAnalysis(ctx context.Context) error {
 	fmt.Println("Calculated Dependencies:")
 	for taskID, blockers := range dag {
 		fmt.Printf("  %s depends on %v\n", taskID, blockers)
-		// Persist Relationships
 		if e.DB != nil && !isNil(e.DB) {
 			for _, blocker := range blockers {
-				if err := e.DB.CreateDependency(ctx, blocker, taskID); err != nil {
-					fmt.Printf("Warning: failed to persist dependency %s -> %s: %v\n", blocker, taskID, err)
-				}
+				e.DB.CreateDependency(ctx, blocker, taskID)
 			}
 		}
 	}
 
-	// 2. Analyze Conflicts
 	conflictReport, err := e.LLM.AnalyzeConflict(ctx, allTasks, []string{"ADR-001", "ADR-002"})
 	if err != nil {
 		return fmt.Errorf("failed to analyze conflicts: %w", err)
 	}
 	fmt.Printf("Conflict Analysis: %s\n", conflictReport)
+
+	return nil
+}
+
+func (e *Engine) PushUpdates(ctx context.Context, confirm func(Task, string) bool) error {
+	allTasks, providers, err := e.fetchAllTasks(ctx)
+	if err != nil {
+		return err
+	}
+
+	conflictReport, err := e.LLM.AnalyzeConflict(ctx, allTasks, []string{"ADR-001", "ADR-002"})
+	if err != nil {
+		return fmt.Errorf("failed to analyze conflicts: %w", err)
+	}
+
+	for _, t := range allTasks {
+		suggestion, err := e.LLM.SuggestTaskUpdate(ctx, t, conflictReport)
+		if err != nil {
+			continue
+		}
+
+		if confirm(t, suggestion) {
+			if p, ok := providers[t.Provider]; ok {
+				if err := p.UpdateTask(ctx, t.ID, suggestion); err != nil {
+					fmt.Printf("Error updating task %s: %v\n", t.ID, err)
+				} else {
+					fmt.Printf("Successfully updated task %s\n", t.ID)
+				}
+			}
+		}
+	}
 
 	return nil
 }

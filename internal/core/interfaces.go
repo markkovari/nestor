@@ -25,12 +25,14 @@ type CodeComponent struct {
 type LLMProvider interface {
 	AnalyzeConflict(ctx context.Context, tasks []Task, adrs []string) (string, error)
 	GenerateDAG(ctx context.Context, tasks []Task) (map[string][]string, error) // Returns task ID to list of blocker IDs
+	SuggestTaskUpdate(ctx context.Context, task Task, conflicts string) (string, error)
 }
 
 // TaskProvider defines the interface for external task trackers
 type TaskProvider interface {
 	Name() string
 	FetchTasks(ctx context.Context) ([]Task, error)
+	UpdateTask(ctx context.Context, taskID string, description string) error
 }
 
 // SourceProvider defines the interface for source control (GitHub, GitLab)

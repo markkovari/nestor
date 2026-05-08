@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/markkovari/nestor/internal/core"
 )
@@ -72,4 +74,29 @@ func (l *LinearProvider) FetchTasks(ctx context.Context) ([]core.Task, error) {
 	}
 
 	return tasks, nil
+}
+
+func (l *LinearProvider) UpdateTask(ctx context.Context, taskID string, description string) error {
+	query := fmt.Sprintf(`mutation { issueUpdate(id: "%s", input: { description: "%s" }) { success } }`, taskID, strings.ReplaceAll(description, "\n", "\\n"))
+	reqBody, _ := json.Marshal(map[string]string{"query": query})
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.linear.app/graphql", bytes.NewBuffer(reqBody))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", l.apiKey)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("linear api returned status %d", resp.StatusCode)
+	}
+
+	return nil
 }

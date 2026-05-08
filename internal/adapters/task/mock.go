@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/markkovari/nestor/internal/core"
 )
@@ -29,4 +30,9 @@ func (m *MockTaskProvider) FetchTasks(ctx context.Context) ([]core.Task, error) 
 			Provider:    "mock",
 		},
 	}, nil
+}
+
+func (m *MockTaskProvider) UpdateTask(ctx context.Context, taskID string, description string) error {
+	fmt.Printf("[MOCK] Updated Task %s with description: %s\n", taskID, description)
+	return nil
 }

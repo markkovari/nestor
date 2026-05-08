@@ -46,5 +46,14 @@ func main() {
 		log.Fatalf("Engine RunAnalysis failed: %v", err)
 	}
 
+	fmt.Println("\n--- Step 2: Push Updates (Mock) ---")
+	confirm := func(t core.Task, suggestion string) bool {
+		fmt.Printf("Mock confirmation for task %s\n", t.ID)
+		return true // Always confirm in mock test
+	}
+	if err := engine.PushUpdates(ctx, confirm); err != nil {
+		log.Fatalf("Engine PushUpdates failed: %v", err)
+	}
+
 	fmt.Println("\n✅ Verification Suite Passed!")
 }

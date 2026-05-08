@@ -16,3 +16,7 @@ func (f *FixtureTaskProvider) Name() string {
 func (f *FixtureTaskProvider) FetchTasks(ctx context.Context) ([]core.Task, error) {
 	return f.Tasks, nil
 }
+
+func (f *FixtureTaskProvider) UpdateTask(ctx context.Context, taskID string, description string) error {
+	return nil
+}

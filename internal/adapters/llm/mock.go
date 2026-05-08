@@ -28,3 +28,7 @@ func (m *MockLLM) GenerateDAG(ctx context.Context, tasks []core.Task) (map[strin
 	}
 	return dag, nil
 }
+
+func (m *MockLLM) SuggestTaskUpdate(ctx context.Context, task core.Task, conflicts string) (string, error) {
+	return fmt.Sprintf("%s\n\n**Nestor Analysis:** This task has potential conflicts: %s", task.Description, conflicts), nil
+}

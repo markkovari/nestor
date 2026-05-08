@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/google/go-github/v62/github"
@@ -67,4 +68,35 @@ func (g *GitHubIssueProvider) FetchTasks(ctx context.Context) ([]core.Task, erro
 	}
 
 	return allTasks, nil
+}
+
+func (g *GitHubIssueProvider) UpdateTask(ctx context.Context, taskID string, description string) error {
+	parts := strings.Split(taskID, "#")
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid github task id: %s", taskID)
+	}
+	repoName, numberStr := parts[0], parts[1]
+	number, err := strconv.Atoi(numberStr)
+	if err != nil {
+		return fmt.Errorf("invalid github issue number: %s", numberStr)
+	}
+
+	owner := ""
+	for _, r := range g.repos {
+		if strings.HasSuffix(r, "/"+repoName) {
+			owner = strings.Split(r, "/")[0]
+			break
+		}
+	}
+
+	if owner == "" {
+		return fmt.Errorf("could not determine owner for repo %s", repoName)
+	}
+
+	input := &github.IssueRequest{
+		Body: github.String(description),
+	}
+
+	_, _, err = g.client.Issues.Edit(ctx, owner, repoName, number, input)
+	return err
 }

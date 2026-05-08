@@ -37,14 +37,15 @@ func ScoreDAG(manifest *Manifest, gotDAG map[string][]string) DAGScore {
 	}
 }
 
-// ScoreConflicts checks whether the conflict report mentions/omits expected conflict tasks.
-// conflictReport is the raw LLM text; we check whether each task ID appears in it.
+// ScoreConflicts checks whether the conflict report covers expected conflict tasks.
+// Matching strategy: task ID OR any 3+ consecutive words from the task title appear in the report.
+// This handles both fixture (ID-based) and real LLM output (content-based).
 func ScoreConflicts(manifest *Manifest, conflictReport string) ConflictScore {
 	var tp, fp, fn int
 	lower := strings.ToLower(conflictReport)
 
 	for _, t := range manifest.Tasks {
-		mentioned := strings.Contains(lower, strings.ToLower(t.ID))
+		mentioned := taskMentioned(lower, t)
 		if t.ExpectConflicts && mentioned {
 			tp++
 		} else if !t.ExpectConflicts && mentioned {
@@ -75,7 +76,7 @@ func BuildDetails(manifest *Manifest, gotDAG map[string][]string, conflictReport
 	for _, t := range manifest.Tasks {
 		gotDeps := gotDAG[t.ID]
 		expectedDeps := manifest.ExpectedDAG[t.ID]
-		mentioned := strings.Contains(lower, strings.ToLower(t.ID))
+		mentioned := taskMentioned(lower, t)
 		details = append(details, TaskEvalDetail{
 			TaskID:           t.ID,
 			ExpectedConflict: t.ExpectConflicts,
@@ -87,6 +88,22 @@ func BuildDetails(manifest *Manifest, gotDAG map[string][]string, conflictReport
 		})
 	}
 	return details
+}
+
+// taskMentioned returns true if the report text references the task by ID or by title keywords.
+// Title match: any 3+ consecutive lowercase words from the title appear as a substring.
+func taskMentioned(reportLower string, t EtalonTask) bool {
+	if strings.Contains(reportLower, strings.ToLower(t.ID)) {
+		return true
+	}
+	words := strings.Fields(strings.ToLower(t.Title))
+	for i := 0; i+2 < len(words); i++ {
+		phrase := strings.Join(words[i:i+3], " ")
+		if strings.Contains(reportLower, phrase) {
+			return true
+		}
+	}
+	return false
 }
 
 func containsStr(slice []string, s string) bool {

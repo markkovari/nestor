@@ -134,3 +134,52 @@ func TestLoadADRs_WithFiles(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadADRs_SkipsObsolete(t *testing.T) {
+	dir := t.TempDir()
+	active := "# ADR Active\n\n## Status\nAccepted\n\n## Decision\nUse Go."
+	superseded := "# ADR Old\n\n## Status\nSuperseded\n\n## Decision\nUse Java."
+	deprecated := "# ADR Dep\n\n## Status\nDeprecated\n\n## Decision\nOld approach."
+	if err := os.WriteFile(filepath.Join(dir, "001-active.md"), []byte(active), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "002-superseded.md"), []byte(superseded), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "003-deprecated.md"), []byte(deprecated), 0644); err != nil {
+		t.Fatal(err)
+	}
+	e := NewEngine(nil, &mockLLM{})
+	adrs, err := e.loadADRs(dir)
+	if err != nil {
+		t.Fatalf("loadADRs error: %v", err)
+	}
+	if len(adrs) != 1 {
+		t.Fatalf("expected 1 active ADR, got %d", len(adrs))
+	}
+	if adrs[0] != active {
+		t.Errorf("wrong ADR loaded: %q", adrs[0])
+	}
+}
+
+func TestADRIsActive(t *testing.T) {
+	cases := []struct {
+		content string
+		active  bool
+	}{
+		{"## Status\nAccepted\n\n## Decision\nFoo.", true},
+		{"## Status\nProposed\n", true},
+		{"## Status\nSuperseded\n", false},
+		{"## Status\nDeprecated\n", false},
+		{"## Status\nObsolete\n", false},
+		{"## Status\nRejected\n", false},
+		{"## Status\nsuperseded\n", false},   // case-insensitive
+		{"# Title\nNo status section.", true}, // no status = active
+	}
+	for _, c := range cases {
+		got := adrIsActive(c.content)
+		if got != c.active {
+			t.Errorf("adrIsActive(%q) = %v, want %v", c.content[:min(40, len(c.content))], got, c.active)
+		}
+	}
+}

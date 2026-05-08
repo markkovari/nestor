@@ -36,6 +36,31 @@ func NewEngine(database DataStore, llm LLMProvider, tasks ...TaskProvider) *Engi
 	}
 }
 
+// obsoleteADRStatuses are ADR status values that mean the rule is no longer active.
+var obsoleteADRStatuses = map[string]bool{
+	"superseded": true,
+	"deprecated": true,
+	"obsolete":   true,
+	"rejected":   true,
+}
+
+func adrIsActive(content string) bool {
+	inStatus := false
+	for _, line := range strings.SplitN(content, "\n", 20) {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "## Status") {
+			inStatus = true
+			continue
+		}
+		if !inStatus || trimmed == "" {
+			continue
+		}
+		// First non-empty line after "## Status" is the status value
+		return !obsoleteADRStatuses[strings.ToLower(trimmed)]
+	}
+	return true
+}
+
 func (e *Engine) loadADRs(dir string) ([]string, error) {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		return []string{}, nil
@@ -53,7 +78,9 @@ func (e *Engine) loadADRs(dir string) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		adrs = append(adrs, string(data))
+		if adrIsActive(string(data)) {
+			adrs = append(adrs, string(data))
+		}
 	}
 	return adrs, nil
 }

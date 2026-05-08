@@ -39,7 +39,7 @@ type linearResponse struct {
 }
 
 func (l *LinearProvider) FetchTasks(ctx context.Context) ([]core.Task, error) {
-	query := `query { issues(first: 50) { nodes { id identifier title description status { name } } } }`
+	query := `query { issues(first: 50, filter: { state: { type: { nin: ["completed", "cancelled"] } } }) { nodes { id identifier title description status { name } } } }`
 	reqBody, _ := json.Marshal(map[string]string{"query": query})
 
 	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.linear.app/graphql", bytes.NewBuffer(reqBody))

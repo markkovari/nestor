@@ -1,0 +1,15 @@
+database:
+  url: "ws://localhost:8000"
+  ns: "nestor_test"
+  db: "complex_system"
+
+llm:
+  provider: "mock"
+
+adapters:
+  github:
+    token: "mock-token"
+    repos: 
+      - "nestor-org/frontend-app"
+      - "nestor-org/backend-api"
+      - "nestor-org/shared-types"

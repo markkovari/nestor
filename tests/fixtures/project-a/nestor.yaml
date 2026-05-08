@@ -1,0 +1,14 @@
+database:
+  url: "ws://localhost:8000"
+  ns: "nestor_test"
+  db: "project_a"
+  user: "root"
+  password: "root"
+
+llm:
+  provider: "mock"
+  model: "test-model"
+
+adapters:
+  github:
+    repos: ["test-org/project-a"]

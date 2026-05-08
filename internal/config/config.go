@@ -71,7 +71,7 @@ func (c *Config) Validate() error {
 }
 
 func LoadConfig() (*Config, error) {
-	viper.SetConfigName("nestor")
+	viper.SetConfigName("nestor.yaml")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(".")
 	viper.AddConfigPath("$HOME/.nestor")

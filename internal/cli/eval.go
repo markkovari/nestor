@@ -23,6 +23,7 @@ var evalCmd = &cobra.Command{
 
 var (
 	evalEtalonDir  string
+	evalADRDir     string
 	evalLive       bool
 	evalLoopN      int
 	evalOutputFile string
@@ -31,6 +32,7 @@ var (
 
 func init() {
 	evalCmd.Flags().StringVar(&evalEtalonDir, "etalon-dir", ".", "path to etalon directory containing etalon.json")
+	evalCmd.Flags().StringVar(&evalADRDir, "adr-dir", "", "load ADRs from this directory instead of etalon-dir (for live mode with separate ADR repo)")
 	evalCmd.Flags().BoolVar(&evalLive, "live", false, "use real LLM (requires config) instead of eval mock")
 	evalCmd.Flags().IntVar(&evalLoopN, "loop", len(etalon.DefaultVariants), "number of prompt variants to run (1–4)")
 	evalCmd.Flags().StringVar(&evalOutputFile, "output", "eval-report.json", "path to write JSON report")
@@ -46,9 +48,17 @@ func runEval(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load etalon manifest: %w", err)
 	}
 
-	adrs, err := etalon.LoadADRContents(evalEtalonDir, manifest)
-	if err != nil {
-		return fmt.Errorf("failed to load ADR contents: %w", err)
+	var adrs []string
+	if evalADRDir != "" {
+		adrs, err = etalon.LoadADRsFromDir(evalADRDir)
+		if err != nil {
+			return fmt.Errorf("failed to load ADRs from --adr-dir: %w", err)
+		}
+	} else {
+		adrs, err = etalon.LoadADRContents(evalEtalonDir, manifest)
+		if err != nil {
+			return fmt.Errorf("failed to load ADR contents: %w", err)
+		}
 	}
 
 	tasks := etalon.TasksToCoreTasks(manifest.Tasks)

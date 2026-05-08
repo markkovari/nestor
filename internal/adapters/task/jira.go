@@ -82,7 +82,7 @@ func (j *JiraProvider) FetchTasks(ctx context.Context) ([]core.Task, error) {
 	for {
 		apiURL := fmt.Sprintf("https://%s/rest/api/3/search?jql=%s&startAt=%d&maxResults=%d",
 			j.domain,
-			url.QueryEscape("project is not EMPTY ORDER BY updated DESC"),
+			url.QueryEscape("project is not EMPTY AND statusCategory != Done ORDER BY updated DESC"),
 			startAt, maxResults)
 
 		req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)

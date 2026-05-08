@@ -1,0 +1,36 @@
+name: Eval (fixture mode)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout etalon repo
+        uses: actions/checkout@v4
+        with:
+          repository: markkovari/nestor-etalon
+          path: nestor-etalon
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build
+        run: go build -o nestor ./cmd/nestor
+
+      - name: Run eval (fixture mode, all variants)
+        run: ./nestor eval --etalon-dir nestor-etalon --loop 4 --output eval-report.json
+
+      - name: Upload eval report
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report
+          path: eval-report.json

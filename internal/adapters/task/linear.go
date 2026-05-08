@@ -34,45 +34,62 @@ type linearResponse struct {
 					Name string `json:"name"`
 				} `json:"status"`
 			} `json:"nodes"`
+			PageInfo struct {
+				HasNextPage bool   `json:"hasNextPage"`
+				EndCursor   string `json:"endCursor"`
+			} `json:"pageInfo"`
 		} `json:"issues"`
 	} `json:"data"`
 }
 
 func (l *LinearProvider) FetchTasks(ctx context.Context) ([]core.Task, error) {
-	query := `query { issues(first: 50, filter: { state: { type: { nin: ["completed", "cancelled"] } } }) { nodes { id identifier title description status { name } } } }`
-	reqBody, _ := json.Marshal(map[string]string{"query": query})
+	var allTasks []core.Task
+	cursor := ""
 
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.linear.app/graphql", bytes.NewBuffer(reqBody))
-	if err != nil {
-		return nil, err
+	for {
+		var query string
+		if cursor == "" {
+			query = `query { issues(first: 50, filter: { state: { type: { nin: ["completed", "cancelled"] } } }) { nodes { id identifier title description status { name } } pageInfo { hasNextPage endCursor } } }`
+		} else {
+			query = fmt.Sprintf(`query { issues(first: 50, after: "%s", filter: { state: { type: { nin: ["completed", "cancelled"] } } }) { nodes { id identifier title description status { name } } pageInfo { hasNextPage endCursor } } }`, cursor)
+		}
+
+		reqBody, _ := json.Marshal(map[string]string{"query": query})
+		req, err := http.NewRequestWithContext(ctx, "POST", "https://api.linear.app/graphql", bytes.NewBuffer(reqBody))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", l.apiKey)
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+
+		var linResp linearResponse
+		if err := json.NewDecoder(resp.Body).Decode(&linResp); err != nil {
+			return nil, err
+		}
+
+		for _, node := range linResp.Data.Issues.Nodes {
+			allTasks = append(allTasks, core.Task{
+				ID:          node.Identifier,
+				Title:       node.Title,
+				Description: node.Description,
+				Status:      node.Status.Name,
+				Provider:    "linear",
+			})
+		}
+
+		if !linResp.Data.Issues.PageInfo.HasNextPage {
+			break
+		}
+		cursor = linResp.Data.Issues.PageInfo.EndCursor
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", l.apiKey)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	var linResp linearResponse
-	if err := json.NewDecoder(resp.Body).Decode(&linResp); err != nil {
-		return nil, err
-	}
-
-	var tasks []core.Task
-	for _, node := range linResp.Data.Issues.Nodes {
-		tasks = append(tasks, core.Task{
-			ID:          node.Identifier,
-			Title:       node.Title,
-			Description: node.Description,
-			Status:      node.Status.Name,
-			Provider:    "linear",
-		})
-	}
-
-	return tasks, nil
+	return allTasks, nil
 }
 
 func (l *LinearProvider) UpdateTask(ctx context.Context, taskID string, description string) error {

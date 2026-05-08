@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+
 	"github.com/markkovari/nestor/internal/core"
 )
 
@@ -48,6 +50,49 @@ func TasksToCoreTasks(tasks []EtalonTask) []core.Task {
 		}
 	}
 	return result
+}
+
+// LoadADRsFromDir reads all active .md files from dir, same filtering as engine.loadADRs.
+// Files with "## Status\n<Superseded|Deprecated|Obsolete|Rejected>" are skipped.
+func LoadADRsFromDir(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read ADR dir %s: %w", dir, err)
+	}
+	var adrs []string
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			return nil, err
+		}
+		if adrActive(string(data)) {
+			adrs = append(adrs, string(data))
+		}
+	}
+	return adrs, nil
+}
+
+var obsoleteStatuses = map[string]bool{
+	"superseded": true, "deprecated": true, "obsolete": true, "rejected": true,
+}
+
+func adrActive(content string) bool {
+	inStatus := false
+	for _, line := range strings.SplitN(content, "\n", 20) {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "## Status") {
+			inStatus = true
+			continue
+		}
+		if !inStatus || trimmed == "" {
+			continue
+		}
+		return !obsoleteStatuses[strings.ToLower(trimmed)]
+	}
+	return true
 }
 
 // LoadGitHubEtalon fetches issues from a GitHub repo and returns them as EtalonTasks.

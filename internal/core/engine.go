@@ -166,6 +166,48 @@ func (e *Engine) RunAnalysis(ctx context.Context) error {
 	return nil
 }
 
+// AnalysisResult holds the structured output of RunAnalysisResult.
+type AnalysisResult struct {
+	TaskCount      int                 `json:"task_count"`
+	Dependencies   map[string][]string `json:"dependencies"`
+	ConflictReport string              `json:"conflict_report"`
+}
+
+func (e *Engine) RunAnalysisResult(ctx context.Context) (*AnalysisResult, error) {
+	allTasks, _, err := e.fetchAllTasks(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	dag, err := e.LLM.GenerateDAG(ctx, allTasks)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate DAG: %w", err)
+	}
+
+	if e.DB != nil && !isNil(e.DB) {
+		for taskID, blockers := range dag {
+			for _, blocker := range blockers {
+				e.DB.CreateDependency(ctx, blocker, taskID)
+			}
+		}
+	}
+
+	adrs, _ := e.loadADRs(e.ADRDir)
+	if len(adrs) == 0 {
+		adrs = []string{"no ADRs configured"}
+	}
+	conflictReport, err := e.LLM.AnalyzeConflict(ctx, allTasks, adrs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to analyze conflicts: %w", err)
+	}
+
+	return &AnalysisResult{
+		TaskCount:      len(allTasks),
+		Dependencies:   dag,
+		ConflictReport: conflictReport,
+	}, nil
+}
+
 func (e *Engine) PushUpdates(ctx context.Context, confirm func(Task, string) bool) error {
 	allTasks, providers, err := e.fetchAllTasks(ctx)
 	if err != nil {

@@ -1,11 +1,15 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/markkovari/nestor/internal/config"
 	"github.com/spf13/cobra"
 )
+
+var checkJSON bool
 
 var checkCmd = &cobra.Command{
 	Use:   "check",
@@ -31,12 +35,22 @@ var checkCmd = &cobra.Command{
 
 		fmt.Printf("Configuration loaded (LLM Provider: %s, Cache TTL: %d min)\n", cfg.LLM.Provider, engine.CacheTTL)
 		fmt.Println("Nestor is starting project analysis...")
-		
+
+		if checkJSON {
+			result, err := engine.RunAnalysisResult(ctx)
+			if err != nil {
+				return err
+			}
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(result)
+		}
 		return engine.RunAnalysis(ctx)
 	},
 }
 
 func init() {
 	checkCmd.Flags().Bool("fetch", false, "Bypass cache and fetch fresh tasks from providers")
+	checkCmd.Flags().BoolVar(&checkJSON, "json", false, "output analysis result as JSON")
 	rootCmd.AddCommand(checkCmd)
 }

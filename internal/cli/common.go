@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/markkovari/nestor/internal/adapters/llm"
 	"github.com/markkovari/nestor/internal/adapters/task"
@@ -17,7 +18,7 @@ func initializeEngine(ctx context.Context, cfg *config.Config) (*core.Engine, *d
 	if cfg.Database.URL != "" {
 		database, err = db.NewDatabase(ctx, cfg.Database)
 		if err != nil {
-			fmt.Printf("Warning: failed to connect to database: %v. Continuing without persistence.\n", err)
+			fmt.Fprintf(os.Stderr, "Warning: database unavailable (%v). Task caching and dependency persistence disabled.\n", err)
 		}
 	}
 
@@ -38,6 +39,9 @@ func initializeEngine(ctx context.Context, cfg *config.Config) (*core.Engine, *d
 	}
 	if cfg.Adapters.Linear.APIKey != "" {
 		taskProviders = append(taskProviders, task.NewLinearProvider(cfg.Adapters.Linear.APIKey))
+	}
+	if cfg.Adapters.Jira.Domain != "" && cfg.Adapters.Jira.Token != "" {
+		taskProviders = append(taskProviders, task.NewJiraProvider(cfg.Adapters.Jira.Domain, cfg.Adapters.Jira.User, cfg.Adapters.Jira.Token))
 	}
 
 	// Fallback to mock if no providers configured

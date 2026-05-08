@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/markkovari/nestor/internal/core"
 )
@@ -77,8 +76,17 @@ func (l *LinearProvider) FetchTasks(ctx context.Context) ([]core.Task, error) {
 }
 
 func (l *LinearProvider) UpdateTask(ctx context.Context, taskID string, description string) error {
-	query := fmt.Sprintf(`mutation { issueUpdate(id: "%s", input: { description: "%s" }) { success } }`, taskID, strings.ReplaceAll(description, "\n", "\\n"))
-	reqBody, _ := json.Marshal(map[string]string{"query": query})
+	body := map[string]any{
+		"query": `mutation IssueUpdate($id: String!, $description: String!) { issueUpdate(id: $id, input: { description: $description }) { success } }`,
+		"variables": map[string]string{
+			"id":          taskID,
+			"description": description,
+		},
+	}
+	reqBody, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request: %w", err)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.linear.app/graphql", bytes.NewBuffer(reqBody))
 	if err != nil {

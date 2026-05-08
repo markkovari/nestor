@@ -3,6 +3,7 @@ package source
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/go-github/v62/github"
 	"github.com/markkovari/nestor/internal/core"
@@ -26,9 +27,10 @@ func (g *GitHubProvider) FetchMetadata(ctx context.Context) ([]core.CodeComponen
 
 	for _, repoPath := range g.repos {
 		// Expecting "owner/repo"
-		owner := ""
-		repo := ""
-		fmt.Sscanf(repoPath, "%s/%s", &owner, &repo) // Simple parse, needs improvement
+		owner, repo, ok := strings.Cut(repoPath, "/")
+		if !ok || owner == "" || repo == "" {
+			return nil, fmt.Errorf("invalid repo format %q: expected owner/repo", repoPath)
+		}
 
 		// Fetch basic repo info
 		r, _, err := g.client.Repositories.Get(ctx, owner, repo)

@@ -1,3 +1,4 @@
+# SurrealDB connection (optional — disables caching/persistence if omitted)
 database:
   url: "ws://localhost:8000"
   ns: "nestor"
@@ -5,10 +6,27 @@ database:
   user: "root"
   password: "root"
 
+# LLM provider for DAG generation and conflict analysis
+# provider: gemini | mock
+# api_key required when provider is "gemini"
 llm:
-  provider: "mock" # options: gemini, openai, mock
+  provider: "mock"
   model: "gemini-1.5-pro"
+  # api_key: "your-gemini-api-key"
+
+# How long to use cached tasks before re-fetching (minutes, default 60)
+cache_ttl: 60
 
 adapters:
   github:
-    repos: ["markkovari/nestor"]
+    # token: "ghp_your_token"
+    repos:
+      - "markkovari/nestor"
+
+  linear:
+    # api_key: "lin_api_your_key"
+
+  jira:
+    # domain: "yourcompany.atlassian.net"
+    # user: "you@yourcompany.com"
+    # token: "your-jira-api-token"

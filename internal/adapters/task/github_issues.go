@@ -44,26 +44,33 @@ func (g *GitHubIssueProvider) FetchTasks(ctx context.Context) ([]core.Task, erro
 			},
 		}
 
-		issues, _, err := g.client.Issues.ListByRepo(ctx, owner, repo, opts)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch issues for %s: %w", repoPath, err)
-		}
-
-		for _, issue := range issues {
-			if issue.IsPullRequest() {
-				continue
+		for {
+			issues, resp, err := g.client.Issues.ListByRepo(ctx, owner, repo, opts)
+			if err != nil {
+				return nil, fmt.Errorf("failed to fetch issues for %s: %w", repoPath, err)
 			}
-			allTasks = append(allTasks, core.Task{
-				ID:          fmt.Sprintf("%s#%d", repo, issue.GetNumber()),
-				Title:       issue.GetTitle(),
-				Description: issue.GetBody(),
-				Status:      issue.GetState(),
-				Provider:    "github",
-				Metadata: map[string]string{
-					"repo": repoPath,
-					"url":  issue.GetHTMLURL(),
-				},
-			})
+
+			for _, issue := range issues {
+				if issue.IsPullRequest() {
+					continue
+				}
+				allTasks = append(allTasks, core.Task{
+					ID:          fmt.Sprintf("%s#%d", repo, issue.GetNumber()),
+					Title:       issue.GetTitle(),
+					Description: issue.GetBody(),
+					Status:      issue.GetState(),
+					Provider:    "github",
+					Metadata: map[string]string{
+						"repo": repoPath,
+						"url":  issue.GetHTMLURL(),
+					},
+				})
+			}
+
+			if resp.NextPage == 0 {
+				break
+			}
+			opts.Page = resp.NextPage
 		}
 	}
 
@@ -93,8 +100,9 @@ func (g *GitHubIssueProvider) UpdateTask(ctx context.Context, taskID string, des
 		return fmt.Errorf("could not determine owner for repo %s", repoName)
 	}
 
+	body := description
 	input := &github.IssueRequest{
-		Body: github.String(description),
+		Body: &body,
 	}
 
 	_, _, err = g.client.Issues.Edit(ctx, owner, repoName, number, input)

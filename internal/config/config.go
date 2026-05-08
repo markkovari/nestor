@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -50,6 +51,25 @@ type LinearConfig struct {
 	APIKey string `mapstructure:"api_key"`
 }
 
+func (c *Config) Validate() error {
+	if c.LLM.Provider == "gemini" && c.LLM.APIKey == "" {
+		return errors.New("llm.api_key is required when llm.provider is \"gemini\"")
+	}
+	if c.LLM.Provider == "gemini" && c.LLM.Model == "" {
+		return errors.New("llm.model is required when llm.provider is \"gemini\"")
+	}
+	if c.Adapters.GitHub.Token != "" && len(c.Adapters.GitHub.Repos) == 0 {
+		return errors.New("adapters.github.repos must not be empty when adapters.github.token is set")
+	}
+	if c.Adapters.Jira.Domain != "" && c.Adapters.Jira.Token == "" {
+		return errors.New("adapters.jira.token is required when adapters.jira.domain is set")
+	}
+	if c.Adapters.Jira.Domain != "" && c.Adapters.Jira.User == "" {
+		return errors.New("adapters.jira.user is required when adapters.jira.domain is set")
+	}
+	return nil
+}
+
 func LoadConfig() (*Config, error) {
 	viper.SetConfigName("nestor")
 	viper.SetConfigType("yaml")
@@ -70,6 +90,10 @@ func LoadConfig() (*Config, error) {
 	var config Config
 	if err := viper.Unmarshal(&config); err != nil {
 		return nil, fmt.Errorf("error unmarshaling config: %w", err)
+	}
+
+	if err := config.Validate(); err != nil {
+		return nil, err
 	}
 
 	return &config, nil

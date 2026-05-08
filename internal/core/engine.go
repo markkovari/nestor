@@ -3,7 +3,10 @@ package core
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"time"
 )
 
@@ -13,14 +16,15 @@ type Engine struct {
 	DB            DataStore
 	CacheTTL      int  // in minutes
 	FetchOnly     bool // bypass cache if true
+	ADRDir        string
 }
 
-func isNil(i interface{}) bool {
+func isNil(i any) bool {
 	if i == nil {
 		return true
 	}
 	v := reflect.ValueOf(i)
-	return v.Kind() == reflect.Ptr && v.IsNil()
+	return v.Kind() == reflect.Pointer && v.IsNil()
 }
 
 func NewEngine(database DataStore, llm LLMProvider, tasks ...TaskProvider) *Engine {
@@ -28,7 +32,30 @@ func NewEngine(database DataStore, llm LLMProvider, tasks ...TaskProvider) *Engi
 		DB:            database,
 		TaskProviders: tasks,
 		LLM:           llm,
+		ADRDir:        "docs/adrs",
 	}
+}
+
+func (e *Engine) loadADRs(dir string) ([]string, error) {
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return []string{}, nil
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var adrs []string
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			return nil, err
+		}
+		adrs = append(adrs, string(data))
+	}
+	return adrs, nil
 }
 
 func (e *Engine) fetchAllTasks(ctx context.Context) ([]Task, map[string]TaskProvider, error) {
@@ -99,7 +126,11 @@ func (e *Engine) RunAnalysis(ctx context.Context) error {
 		}
 	}
 
-	conflictReport, err := e.LLM.AnalyzeConflict(ctx, allTasks, []string{"ADR-001", "ADR-002"})
+	adrs, _ := e.loadADRs(e.ADRDir)
+	if len(adrs) == 0 {
+		adrs = []string{"no ADRs configured"}
+	}
+	conflictReport, err := e.LLM.AnalyzeConflict(ctx, allTasks, adrs)
 	if err != nil {
 		return fmt.Errorf("failed to analyze conflicts: %w", err)
 	}
@@ -114,7 +145,11 @@ func (e *Engine) PushUpdates(ctx context.Context, confirm func(Task, string) boo
 		return err
 	}
 
-	conflictReport, err := e.LLM.AnalyzeConflict(ctx, allTasks, []string{"ADR-001", "ADR-002"})
+	adrs, _ := e.loadADRs(e.ADRDir)
+	if len(adrs) == 0 {
+		adrs = []string{"no ADRs configured"}
+	}
+	conflictReport, err := e.LLM.AnalyzeConflict(ctx, allTasks, adrs)
 	if err != nil {
 		return fmt.Errorf("failed to analyze conflicts: %w", err)
 	}

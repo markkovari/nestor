@@ -20,24 +20,17 @@ Nestor is an intelligent project checker and task dependency analyzer. It analyz
 
 Nestor uses a `nestor.yaml` file for configuration. It looks for this file in the current directory or in `$HOME/.nestor/`.
 
-### Example Configuration (`nestor.yaml.example`)
-```yaml
-database:
-  url: "ws://localhost:8000"
-  ns: "nestor"
-  db: "nestor"
-  user: "root"
-  password: "root"
+### Environment Variables
 
-llm:
-  provider: "gemini" # options: gemini, openai, ollama, mock
-  api_key: "YOUR_API_KEY"
-  model: "gemini-1.5-pro"
+You can override any configuration value using environment variables with the `NESTOR_` prefix. Nested keys are separated by underscores.
 
-adapters:
-  github:
-    token: "YOUR_GITHUB_TOKEN"
-    repos: ["owner/repo"]
+- `NESTOR_DATABASE_URL` maps to `database.url`
+- `NESTOR_LLM_API_KEY` maps to `llm.api_key`
+- `NESTOR_ADAPTERS_GITHUB_TOKEN` maps to `adapters.github.token`
+
+Example:
+```bash
+NESTOR_LLM_API_KEY=your_key_here ./nestor check
 ```
 
 ## 🏗 Architecture & ADRs

@@ -55,6 +55,8 @@ func LoadConfig() (*Config, error) {
 	viper.AddConfigPath(".")
 	viper.AddConfigPath("$HOME/.nestor")
 
+	// Map nested keys like database.url to NESTOR_DATABASE_URL
+	viper.SetEnvPrefix("NESTOR")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 

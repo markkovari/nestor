@@ -11,6 +11,7 @@ type Config struct {
 	Database DatabaseConfig `mapstructure:"database"`
 	LLM      LLMConfig      `mapstructure:"llm"`
 	Adapters AdaptersConfig `mapstructure:"adapters"`
+	CacheTTL int            `mapstructure:"cache_ttl"` // TTL in minutes
 }
 
 type DatabaseConfig struct {

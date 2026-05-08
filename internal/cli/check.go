@@ -20,7 +20,9 @@ var checkCmd = &cobra.Command{
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
-		fmt.Printf("Configuration loaded (LLM Provider: %s)\n", cfg.LLM.Provider)
+		fetchOnly, _ := cmd.Flags().GetBool("fetch")
+
+		fmt.Printf("Configuration loaded (LLM Provider: %s, Cache TTL: %d min)\n", cfg.LLM.Provider, cfg.CacheTTL)
 
 		// Initialize Database
 		var database *db.Database
@@ -39,6 +41,11 @@ var checkCmd = &cobra.Command{
 		mockTasks := &task.MockTaskProvider{}
 
 		engine := core.NewEngine(database, mockLLM, mockTasks)
+		engine.CacheTTL = cfg.CacheTTL
+		if engine.CacheTTL == 0 {
+			engine.CacheTTL = 60 // Default 1 hour
+		}
+		engine.FetchOnly = fetchOnly
 		
 		fmt.Println("Nestor is starting project analysis (Mock Mode)...")
 		return engine.RunAnalysis(cmd.Context())
@@ -46,5 +53,6 @@ var checkCmd = &cobra.Command{
 }
 
 func init() {
+	checkCmd.Flags().Bool("fetch", false, "Bypass cache and fetch fresh tasks from providers")
 	rootCmd.AddCommand(checkCmd)
 }

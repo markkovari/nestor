@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/markkovari/nestor/internal/config"
 	"github.com/markkovari/nestor/internal/core"
@@ -14,6 +15,7 @@ type Database struct {
 }
 
 func NewDatabase(ctx context.Context, cfg config.DatabaseConfig) (*Database, error) {
+	// Use FromEndpointURLString for v1.4.0
 	db, err := surrealdb.FromEndpointURLString(ctx, cfg.URL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to surrealdb: %w", err)
@@ -49,6 +51,7 @@ func (d *Database) SaveTask(ctx context.Context, t core.Task) error {
 		"status":      t.Status,
 		"provider":    t.Provider,
 		"metadata":    t.Metadata,
+		"cached_at":   time.Now().Format(time.RFC3339),
 	}
 
 	id := fmt.Sprintf("task:%s", t.ID)
@@ -59,6 +62,25 @@ func (d *Database) SaveTask(ctx context.Context, t core.Task) error {
 	}
 
 	return nil
+}
+
+// FetchTasksByProvider retrieves all tasks for a specific provider
+func (d *Database) FetchTasksByProvider(ctx context.Context, provider string) ([]core.Task, error) {
+	q := "SELECT * FROM task WHERE provider = $provider"
+	vars := map[string]interface{}{
+		"provider": provider,
+	}
+
+	res, err := surrealdb.Query[[]core.Task](ctx, d.Conn, q, vars)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(*res) == 0 {
+		return []core.Task{}, nil
+	}
+
+	return (*res)[0].Result, nil
 }
 
 // SaveCodeComponent upserts a code component into the database
@@ -107,6 +129,7 @@ func (d *Database) InitSchema(ctx context.Context) error {
 		"DEFINE FIELD description ON task TYPE string;",
 		"DEFINE FIELD provider ON task TYPE string;",
 		"DEFINE FIELD status ON task TYPE string;",
+		"DEFINE FIELD cached_at ON task TYPE string;",
 		
 		"DEFINE TABLE code_component SCHEMAFULL;",
 		"DEFINE FIELD path ON code_component TYPE string;",

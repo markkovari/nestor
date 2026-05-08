@@ -17,6 +17,10 @@ func NewLinearProvider(apiKey string) *LinearProvider {
 	return &LinearProvider{apiKey: apiKey}
 }
 
+func (l *LinearProvider) Name() string {
+	return "linear"
+}
+
 type linearResponse struct {
 	Data struct {
 		Issues struct {

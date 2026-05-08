@@ -10,6 +10,7 @@ type Task struct {
 	Status      string
 	Provider    string // "jira", "linear", etc.
 	Metadata    map[string]string
+	CachedAt    string // ISO8601 timestamp
 }
 
 // CodeComponent represents a part of the codebase (file, package, etc.)
@@ -28,6 +29,7 @@ type LLMProvider interface {
 
 // TaskProvider defines the interface for external task trackers
 type TaskProvider interface {
+	Name() string
 	FetchTasks(ctx context.Context) ([]Task, error)
 }
 
@@ -42,4 +44,5 @@ type DataStore interface {
 	SaveCodeComponent(ctx context.Context, c CodeComponent) error
 	CreateDependency(ctx context.Context, blockerID, blockedID string) error
 	CreateModification(ctx context.Context, taskID, componentID string) error
+	FetchTasksByProvider(ctx context.Context, provider string) ([]Task, error)
 }

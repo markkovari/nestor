@@ -8,6 +8,10 @@ import (
 
 type MockTaskProvider struct{}
 
+func (m *MockTaskProvider) Name() string {
+	return "mock"
+}
+
 func (m *MockTaskProvider) FetchTasks(ctx context.Context) ([]core.Task, error) {
 	return []core.Task{
 		{

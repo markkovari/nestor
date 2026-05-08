@@ -22,6 +22,10 @@ func NewGitHubIssueProvider(token string, repos []string) *GitHubIssueProvider {
 	}
 }
 
+func (g *GitHubIssueProvider) Name() string {
+	return "github"
+}
+
 func (g *GitHubIssueProvider) FetchTasks(ctx context.Context) ([]core.Task, error) {
 	var allTasks []core.Task
 
